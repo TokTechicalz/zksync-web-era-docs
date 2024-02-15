@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "./IERC20.sol";
+import "./IZkSync.sol";
+
+contract ZkSyncPaymentContract {
+    address public owner;
+    IZkSync public zkSync;
+    IERC20 public usdc;
+
+    event PaymentReceived(address indexed payer, uint256 amount);
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not the owner");
+        _;
+    }
+
+    constructor(address _zkSyncAddress, address _usdcAddress) {
+        owner = msg.sender;
+        zkSync = IZkSync(_zkSyncAddress);
+        usdc = IERC20(_usdcAddress);
+    }
+
+    function makePayment(uint256 amount) external {
+        require(usdc.transferFrom(msg.sender, address(this), amount), "USDC transfer failed");
+        usdc.approve(address(zkSync), amount);
+        zkSync.depositERC20(address(usdc), amount);
+
+        emit PaymentReceived(msg.sender, amount);
+    }
+
+    function withdrawToOwner(uint256 amount) external onlyOwner {
+        require(zkSync.withdrawERC20(address(usdc), amount), "Withdraw from zkSync failed");
+        require(usdc.transfer(owner, amount), "USDC transfer to owner failed");
+    }
+}
